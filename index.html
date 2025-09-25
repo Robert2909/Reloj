@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Reloj</title>
+  <!-- Fuente estilo reloj digital; si no carga, cae a monospace -->
+  <link href="https://fonts.cdnfonts.com/css/ds-digital" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000;
+      --fg: #ffffff;
+      --glow: rgba(255,255,255,0.35);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;          /* nada de scroll */
+      user-select: none;         /* no seleccionable */
+      -webkit-tap-highlight-color: transparent;
+      cursor: none;              /* no cursor visible */
+    }
+    /* Contenedor centrado absoluto */
+    .wrap {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+    }
+    /* La hora en grande, responsiva a viewport */
+    #clock {
+      font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .04em;
+      text-shadow: 0 0 .15em var(--glow), 0 0 .35em var(--glow);
+      /* Tamaño responsivo: escala con el lado menor del viewport */
+      font-size: min(22vw, 22vh);
+      white-space: nowrap;
+    }
+    /* Oculta cualquier mensaje de selección o enfoque visual */
+    :focus { outline: none; }
+
+    /* Mantén el texto nítido en distintos navegadores */
+    #clock { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+    /* Fallback discreto si la fuente externa no carga (detectando ancho medio) */
+    @supports not (font-variation-settings: normal) {
+      #clock { letter-spacing: .02em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap" aria-hidden="true"><div id="clock">00:00:00</div></div>
+
+  <script>
+    // Ajusta tu formato aquí:
+    const USE_24H = true;   // true = 24h, false = 12h con AM/PM (pero sin mostrar el sufijo)
+    const SHOW_SECONDS = true; // muestra segundos
+
+    function pad(n){ return n.toString().padStart(2,'0'); }
+
+    function render() {
+      const now = new Date();
+      let h = now.getHours();
+      if (!USE_24H) h = (h % 12) || 12; // 12h sin AM/PM
+      const m = now.getMinutes();
+      const s = now.getSeconds();
+      const text = SHOW_SECONDS ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}`;
+      clock.textContent = text;
+      requestAnimationFrame(tick);
+    }
+
+    let lastSecond = -1;
+    function tick(){
+      const now = new Date();
+      if (now.getSeconds() !== lastSecond) {
+        lastSecond = now.getSeconds();
+        render();
+      } else {
+        requestAnimationFrame(tick);
+      }
+    }
+
+    // Despierta rápido y sincroniza al segundo
+    (function boot(){
+      // Primera pintura inmediata
+      render();
+      // Re-sincroniza justo al inicio del siguiente segundo para precisión visual
+      const ms = new Date().getMilliseconds();
+      setTimeout(()=>requestAnimationFrame(tick), 1000 - ms);
+    })();
+
+    // Evita que el dispositivo se atenúe fácilmente en móviles con interacción ocasional
+    addEventListener('touchstart', () => {}, {passive: true});
+  </script>
+</body>
+</html>
