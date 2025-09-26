@@ -4,101 +4,141 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Reloj</title>
+  <!-- Tipografía estilo reloj digital (fallback a monospace) -->
   <link href="https://fonts.cdnfonts.com/css/ds-digital" rel="stylesheet">
   <style>
+    /* ==========================================================
+       THEME / TOKENS
+       ========================================================== */
     :root {
-      --bg: #000;
-      --fg: #ffffff;
-      --glow: rgba(255,255,255,.08);
+      --bg: #000;                         /* fondo absoluto */
+      --fg: #fff;                         /* texto principal */
+      --glow: rgba(255,255,255,.08);      /* halo sutil del dígito */
+
+      /* Controles */
       --btn-bg: rgba(255,255,255,.06);
       --btn-border: rgba(255,255,255,.18);
       --btn-active: rgba(255,255,255,.25);
-      --ring-track: rgba(255,255,255,.10);
-      --ring-progress: rgba(255,255,255,.45);
-      --tick: rgba(255,255,255,.22);
-      --ring-size: min(78vmin, 80vmin); /* diámetro del anillo */
+
+      /* Segundero circular */
+      --ring-track: rgba(255,255,255,.10);  /* carril base */
+      --ring-progress: rgba(255,255,255,.45);/* progreso/realce */
+      --tick: rgba(255,255,255,.22);        /* marcas de segundo */
+      --ring-size: min(78vmin, 80vmin);     /* diámetro del aro */
     }
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+    /* ==========================================================
+       LAYOUT BASE
+       ========================================================== */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      overflow: hidden;                 /* sin scroll */
+      user-select: none;                /* no seleccionable */
+      -webkit-tap-highlight-color: transparent;
+    }
     .wrap { position: fixed; inset: 0; display: grid; place-items: center; }
 
-    /* Reloj centrado estable */
-    .clock-box { position: relative; display:grid; place-items:center; }
+    /* ==========================================================
+       RELOJ (HH:MM) — CENTRADO Y ESTABLE
+       ========================================================== */
+    .clock-box { position: relative; display: grid; place-items: center; }
     #clock {
-      font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
-      letter-spacing: .04em; white-space: nowrap;
+      font-family: 'DS-Digital','DS-Digital Bold',ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .04em;
+      white-space: nowrap;
       text-shadow: 0 0 .035em var(--glow), 0 0 .1em var(--glow);
-      font-size: min(28vw, 28vh);
-      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; position: relative; z-index: 2; text-align:center;
+      font-size: min(28vw, 28vh);       /* responsivo al viewport */
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      position: relative;
+      z-index: 2;
+      text-align: center;
     }
-    .clock-box::before{ /* reserva de ancho para evitar saltos */
+    /* Reserva de ancho máximo para evitar saltos visuales */
+    .clock-box::before{
       content: '88:88';
-      font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-weight: 700; line-height: 1; letter-spacing: .04em; white-space: nowrap;
+      font-family: 'DS-Digital','DS-Digital Bold',ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: .04em;
+      white-space: nowrap;
       font-size: min(28vw, 28vh);
-      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
       visibility: hidden; pointer-events: none; user-select: none;
     }
 
-    /* Segundero circular (SVG) */
+    /* ==========================================================
+       SEGUNDERO CIRCULAR (SVG)
+       ========================================================== */
     .sec-ring { position: absolute; width: var(--ring-size); height: var(--ring-size); z-index: 1; pointer-events: none; opacity: .9; }
     .sec-ring.hidden { display: none; }
+    .sec-ring circle { fill: none; }
     .sec-ring line { stroke: var(--tick); stroke-linecap: round; }
     .sec-ring line.active { stroke: var(--ring-progress); stroke-width: .9; }
-    .sec-ring circle { fill: none; }
 
-    /* Segundos pequeños debajo del reloj */
+    /* Segundos mini bajo HH:MM (sin interferir con centrado) */
     #miniSec {
       position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% + 2.4em));
-      font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: 'DS-Digital','DS-Digital Bold',ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;
       font-weight: 700; line-height: 1; letter-spacing: .04em; white-space: nowrap;
       font-size: min(6vw, 6vh);
       color: var(--fg); opacity: .9;
       text-shadow: 0 0 .03em var(--glow), 0 0 .08em var(--glow);
     }
-    #miniSec.hidden { display:none; }
+    #miniSec.hidden { display: none; }
 
-    .controls { position: fixed; left: 50%; bottom: 2.2vh; transform: translateX(-50%); display: flex; gap: .6rem; align-items: center; justify-content: center; opacity: .8; will-change: opacity, transform; transition: opacity .45s cubic-bezier(.22,.61,.36,1), transform .45s cubic-bezier(.22,.61,.36,1); }
-    .controls button { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 999px; background: var(--btn-bg); color: var(--fg); border: 1px solid var(--btn-border); backdrop-filter: blur(2px); cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .2s ease; }
+    /* ==========================================================
+       CONTROLES (AUTO-HIDE + ANIMACIÓN)
+       ========================================================== */
+    .controls {
+      position: fixed; left: 50%; bottom: 2.2vh; transform: translateX(-50%);
+      display: flex; gap: .6rem; align-items: center; justify-content: center;
+      opacity: .8; will-change: opacity, transform;
+      transition: opacity .45s cubic-bezier(.22,.61,.36,1), transform .45s cubic-bezier(.22,.61,.36,1);
+    }
+    .controls.hidden { opacity: 0; transform: translate(-50%, 12px) scale(.98); pointer-events: none; }
+    .controls button {
+      width: 36px; height: 36px; display: grid; place-items: center;
+      border-radius: 999px; background: var(--btn-bg); color: var(--fg);
+      border: 1px solid var(--btn-border); backdrop-filter: blur(2px);
+      cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .2s ease;
+    }
     .controls button:hover { opacity: 1; }
     .controls button.active { background: var(--btn-active); border-color: var(--fg); }
     .controls svg { width: 18px; height: 18px; fill: currentColor; }
     .controls, .controls * { cursor: pointer; }
-    .controls.hidden { opacity: 0; transform: translate(-50%, 12px) scale(.98); pointer-events: none; }
     body.hide-cursor { cursor: none; }
-    @media print { .controls { display:none; } } { .controls { display:none; } }
+
+    @media print { .controls { display: none; } }
   </style>
 </head>
 <body>
   <div class="wrap" aria-hidden="true">
     <div class="clock-box" id="clockBox">
-      <!-- Segundero circular detrás -->
+      <!-- Segundero circular detrás (track + progreso + ticks) -->
       <svg class="sec-ring" id="secRing" viewBox="0 0 100 100" aria-hidden="true">
-        <defs>
-          <mask id="ringMask">
-            <rect x="0" y="0" width="100" height="100" fill="white"/>
-          </mask>
-        </defs>
         <g id="ticks"></g>
         <circle class="track" id="secTrack" cx="50" cy="50" r="45" />
         <circle class="progress" id="secProg" cx="50" cy="50" r="45" />
       </svg>
+
+      <!-- Hora principal -->
       <div id="clock">00:00</div>
+      <!-- Segundos mini (se ocultan cuando se oculta el segundero) -->
       <div id="miniSec" aria-hidden="true">:00</div>
     </div>
   </div>
 
+  <!-- Controles compactos (teclas: F pantalla completa, S segundero, P 12/24h) -->
   <div class="controls" role="group" aria-label="Ajustes del reloj">
-    <button id="toggle-ampm" aria-pressed="false" title="Alternar 24h / 12h" aria-label="Alternar 24h / 12h">
-      <!-- Icono claro: 12 sobre 24 dentro de un círculo -->
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
-        <text x="12" y="9" text-anchor="middle" font-size="6" font-family="ui-monospace, monospace">12</text>
-        <text x="12" y="17" text-anchor="middle" font-size="6" font-family="ui-monospace, monospace">24</text>
-      </svg>
-    </button>
     <button id="toggle-seconds" aria-pressed="true" class="active" title="Mostrar / ocultar segundero circular" aria-label="Mostrar / ocultar segundero circular">
-      <!-- Icono claro: aro con ticks y un arco -->
+      <!-- Aro con arco y marcas cardinales -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1" opacity="0.6"/>
         <path d="M12 3 A9 9 0 0 1 20 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -108,55 +148,84 @@
         <line x1="12" y1="21" x2="12" y2="19" stroke="currentColor" stroke-width="1"/>
       </svg>
     </button>
+    <button id="toggle-ampm" aria-pressed="false" title="Alternar 24h / 12h" aria-label="Alternar 24h / 12h">
+      <!-- 12/24 dentro de un círculo -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="12" y="9" text-anchor="middle" font-size="6" font-family="ui-monospace, monospace">12</text>
+        <text x="12" y="17" text-anchor="middle" font-size="6" font-family="ui-monospace, monospace">24</text>
+      </svg>
+    </button>
   </div>
 
   <script>
-    // Estado inicial
+    'use strict';
+    /* ==========================================================
+       ESTADO / REFERENCIAS DOM
+       ========================================================== */
     let use24h = false;     // false => 12h (sin sufijo)
-    let showSeconds = true; // ahora controla el anillo, no dígitos
+    let showSeconds = true; // controla anillo + segundos mini
 
-    const $clock = document.getElementById('clock');
-    const $btnAmPm = document.getElementById('toggle-ampm');
-    const $btnSec  = document.getElementById('toggle-seconds');
-    const $ring    = document.getElementById('secRing');
-    const $ticks   = document.getElementById('ticks');
-    const $prog    = document.getElementById('secProg');
-    const $miniSec = document.getElementById('miniSec');
-    const $controls = document.querySelector('.controls');
+    const $clock     = document.getElementById('clock');
+    const $btnAmPm   = document.getElementById('toggle-ampm');
+    const $btnSec    = document.getElementById('toggle-seconds');
+    const $ring      = document.getElementById('secRing');
+    const $ticks     = document.getElementById('ticks');
+    const $prog      = document.getElementById('secProg');
+    const $miniSec   = document.getElementById('miniSec');
+    const $controls  = document.querySelector('.controls');
 
-    function pad(n){ return n.toString().padStart(2,'0'); }
+    const STORE_KEY = 'robert-clock:v1';          // clave de persistencia
+    const R = 45;                                  // radio geométrico del aro (uu del viewBox)
+    const STROKE_UU = 1.2;                         // grosor del trazo en uu del viewBox
+    const C = 2 * Math.PI * R;                     // longitud de la circunferencia
+    const HIDE_AFTER = 1000;                        // ms sin interacción para ocultar controles/cursor
 
+    /* ==========================================================
+       UTILIDADES
+       ========================================================== */
+    const pad = n => n.toString().padStart(2,'0');
+    const isFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+    const toggleFullscreen = () => {
+      const docEl = document.documentElement;
+      if (!isFullscreen()) (docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.msRequestFullscreen).call(docEl);
+      else (document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen).call(document);
+    };
+
+    /* ==========================================================
+       RENDER PRINCIPAL (HH:MM) — repinta solo al cambiar de minuto
+       ========================================================== */
     function drawTime(){
       const now = new Date();
       let h = now.getHours();
-      if (!use24h) h = (h % 12) || 12;
+      if (!use24h) h = (h % 12) || 12;          // 12h sin sufijo
       const m = now.getMinutes();
-      $clock.textContent = `${pad(h)}:${pad(m)}`; // siempre HH:MM
+      $clock.textContent = `${pad(h)}:${pad(m)}`;
     }
 
-    // Segundero circular: barra de progreso suave 0..60s
-    const R = 45; // radio geométrico (línea media del trazo)
-    const STROKE_UU = 1.2; // grosor en unidades del viewBox (alineación perfecta)
-    const C = 2 * Math.PI * R;
-    $prog.setAttribute('stroke-dasharray', C.toFixed(3));
-    // fija stroke-width en unidades del viewBox
-    document.getElementById('secTrack').setAttribute('stroke-width', STROKE_UU);
-    $prog.setAttribute('stroke-width', STROKE_UU);
+    /* ==========================================================
+       SEGUNDERO CIRCULAR — progreso continuo + realce del tick actual
+       ========================================================== */
+    // preparar arco: dasharray y grosor en unidades del viewBox para alinear perfecto
+    (function prepRing(){
+      document.getElementById('secTrack').setAttribute('stroke-width', STROKE_UU);
+      $prog.setAttribute('stroke-width', STROKE_UU);
+      $prog.setAttribute('stroke-dasharray', C.toFixed(3));
+    })();
 
-    // Generar marcas de segundos (60) con 12 más largas
+    // crear 60 marcas con 12 más largas (cada 5 s), alineadas -90° (arriba)
     (function buildTicks(){
-      const center = 50, rLineEnd = R; // termina en la línea media del anillo
-      const long = 4.4, short = 2.2;   // longitud de marcas
+      const center = 50, rLineEnd = R, long = 4.4, short = 2.2;
       window.__tickEls = [];
       for (let i = 0; i < 60; i++) {
-        const angle = ((i / 60) * 2 * Math.PI) - Math.PI / 2; // -90° (arriba)
-        const len = (i % 5 === 0) ? long : short; // 12 marcas más largas
-        const r1 = rLineEnd - len; // punto interior
-        const x1 = center + r1 * Math.cos(angle);
-        const y1 = center + r1 * Math.sin(angle);
-        const x2 = center + rLineEnd * Math.cos(angle);
-        const y2 = center + rLineEnd * Math.sin(angle);
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        const a = (i/60)*2*Math.PI - Math.PI/2;        // radianes, origen arriba
+        const len = (i % 5 === 0) ? long : short;      // marca larga cada 5 s
+        const r1 = rLineEnd - len;                     // punto interior
+        const x1 = center + r1 * Math.cos(a);
+        const y1 = center + r1 * Math.sin(a);
+        const x2 = center + rLineEnd * Math.cos(a);
+        const y2 = center + rLineEnd * Math.sin(a);
+        const line = document.createElementNS('http://www.w3.org/2000/svg','line');
         line.setAttribute('x1', x1.toFixed(3));
         line.setAttribute('y1', y1.toFixed(3));
         line.setAttribute('x2', x2.toFixed(3));
@@ -167,13 +236,12 @@
       }
     })();
 
-    let lastSecond = -1;
+    let lastSecond = -1, lastMinute = -1;
     function drawSeconds(progress){
       if ($ring.classList.contains('hidden')) return;
       const offset = C * (1 - progress);
       $prog.setAttribute('stroke-dashoffset', offset.toFixed(3));
-      // Resalta la marca del segundo actual
-      const sec = Math.floor(progress * 60) % 60;
+      const sec = Math.floor(progress * 60) % 60;     // tick activo
       if (sec !== lastSecond) {
         if (lastSecond >= 0) __tickEls[lastSecond].classList.remove('active');
         __tickEls[sec].classList.add('active');
@@ -181,19 +249,19 @@
       }
     }
 
-    // Bucle de actualización continuo (60 fps) para animación fluida
-    let lastMinute = -1;
+    // bucle 60 fps: mueve progreso continuo; repinta HH:MM solo al cambiar de minuto
     function loop(){
       const now = new Date();
-      const msInMinute = now.getSeconds() * 1000 + now.getMilliseconds();
-      const progress = msInMinute / 60000; // 0..1 continuo
+      const progress = (now.getSeconds()*1000 + now.getMilliseconds()) / 60000; // 0..1
       drawSeconds(progress);
-      if (showSeconds) { $miniSec.textContent = ':' + pad(now.getSeconds()); }
+      if (showSeconds) $miniSec.textContent = ':' + pad(now.getSeconds());
       if (now.getMinutes() !== lastMinute) { lastMinute = now.getMinutes(); drawTime(); }
       requestAnimationFrame(loop);
     }
 
-    // Controles y estado visual
+    /* ==========================================================
+       CONTROLES / PREFERENCIAS / WAKE LOCK
+       ========================================================== */
     function updateButtons(){
       $btnAmPm.classList.toggle('active', !use24h);
       $btnAmPm.setAttribute('aria-pressed', String(!use24h));
@@ -203,10 +271,11 @@
       $miniSec.classList.toggle('hidden', !showSeconds);
     }
 
-    $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); drawTime(); savePrefs(); requestWakeLock(); });
-    $btnSec.addEventListener('click',  () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); });
+    // Persistencia
+    function savePrefs(){ try { localStorage.setItem(STORE_KEY, JSON.stringify({use24h, showSeconds})); } catch(_){} }
+    function loadPrefs(){ try { const v = JSON.parse(localStorage.getItem(STORE_KEY)); if (v) { use24h = !!v.use24h; showSeconds = !!v.showSeconds; } } catch(_){} }
 
-    // Wake Lock para evitar suspensión (Chromium/Brave)
+    // Wake Lock (evita suspensión de pantalla)
     let wakeLock = null;
     async function requestWakeLock(){
       try {
@@ -215,14 +284,12 @@
           wakeLock = await navigator.wakeLock.request('screen');
           wakeLock.addEventListener('release', () => {});
         }
-      } catch (_) {}
+      } catch(_){}
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
-    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => requestWakeLock(), { passive:true }));
+    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => requestWakeLock(), {passive:true}));
 
-    // Pantalla completa (tecla F)
-    function isFullscreen(){ return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement; }
-    function toggleFullscreen(){ const docEl = document.documentElement; if (!isFullscreen()) {(docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.msRequestFullscreen).call(docEl);} else {(document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen).call(document);} }
+    // Hotkeys: F pantalla completa, S segundero, P 12/24h
     addEventListener('keydown', (e)=>{
       const k = e.key;
       if (k === 'f' || k === 'F') { e.preventDefault(); toggleFullscreen(); showControlsTemp(); return; }
@@ -230,29 +297,59 @@
       if (k === 'p' || k === 'P') { e.preventDefault(); use24h = !use24h; updateButtons(); drawTime(); savePrefs(); showControlsTemp(); return; }
     });
 
-    // Preferencias (persistencia)
-    const STORE_KEY = 'robert-clock:v1';
-    function savePrefs(){ try { localStorage.setItem(STORE_KEY, JSON.stringify({use24h, showSeconds})); } catch(_){} }
-    function loadPrefs(){ try { const v = JSON.parse(localStorage.getItem(STORE_KEY)); if (v) { use24h = !!v.use24h; showSeconds = !!v.showSeconds; } } catch(_){} }
+    // Doble click en cualquier lugar (excepto controles): alterna pantalla completa
+    addEventListener('dblclick', (e)=>{
+      if (e.target.closest('.controls')) return; // no activar si es sobre los botones
+      e.preventDefault();
+      toggleFullscreen();
+      showControlsTemp();
+    });
 
-    // Auto-ocultar controles
-    let idleT; const HIDE_AFTER = 1000;
+    // Doble toque en móvil (excepto sobre controles): alterna pantalla completa
+    let lastTap = 0, tapX = 0, tapY = 0;
+    addEventListener('touchstart', (e)=>{
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      const now = Date.now();
+      const within = now - lastTap < 300;           // ventana para doble toque (~300 ms)
+      const dx = Math.abs(t.clientX - tapX);
+      const dy = Math.abs(t.clientY - tapY);
+      const smallMove = (dx*dx + dy*dy) < (25*25);  // tolerancia ~25px
+      const overControls = e.target.closest('.controls');
+      if (within && smallMove && !overControls) {
+        e.preventDefault();
+        toggleFullscreen();
+        showControlsTemp();
+        lastTap = 0; // reset
+      } else {
+        lastTap = now; tapX = t.clientX; tapY = t.clientY;
+      }
+    }, {passive:false});
+
+    // Clicks en botones
+    $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); drawTime(); savePrefs(); requestWakeLock(); });
+    $btnSec .addEventListener('click', () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); });
+
+    // Auto-ocultar controles + cursor sincronizado
+    let idleT;
     function showControlsTemp(){
       $controls.classList.remove('hidden');
       document.body.classList.remove('hide-cursor');
       clearTimeout(idleT);
-      idleT = setTimeout(()=> { $controls.classList.add('hidden'); document.body.classList.add('hide-cursor'); }, HIDE_AFTER);
+      idleT = setTimeout(() => { $controls.classList.add('hidden'); document.body.classList.add('hide-cursor'); }, HIDE_AFTER);
     }
     ['mousemove','touchstart','click'].forEach(evt => addEventListener(evt, showControlsTemp, {passive:true}));
 
-    // Init
+    /* ==========================================================
+       INIT
+       ========================================================== */
     (function init(){
       loadPrefs();
       updateButtons();
       drawTime();
       loop();
       requestWakeLock();
-      showControlsTemp();
+      showControlsTemp(); // muestra al entrar y programará su ocultado
     })();
   </script>
 </body>
