@@ -24,7 +24,7 @@
       --ring-track: rgba(255,255,255,.10);  /* carril base */
       --ring-progress: rgba(255,255,255,.45);/* progreso/realce */
       --tick: rgba(255,255,255,.22);        /* marcas de segundo */
-      --ring-size: min(78vmin, 80vmin);     /* diámetro del aro */
+      --ring-size: min(86vmin, 88vmin);     /* diámetro del aro */
     }
 
     /* ==========================================================
@@ -135,7 +135,7 @@
     </div>
   </div>
 
-  <!-- Controles compactos (teclas: F pantalla completa, S segundero, P 12/24h) -->
+  <!-- Controles compactos (teclas: F pantalla completa, S segundero, P 12/24h, M sonido) -->
   <div class="controls" role="group" aria-label="Ajustes del reloj">
     <button id="toggle-seconds" aria-pressed="true" class="active" title="Mostrar / ocultar segundero circular" aria-label="Mostrar / ocultar segundero circular">
       <!-- Aro con arco y marcas cardinales -->
@@ -148,6 +148,16 @@
         <line x1="12" y1="21" x2="12" y2="19" stroke="currentColor" stroke-width="1"/>
       </svg>
     </button>
+
+    <button id="toggle-sound" aria-pressed="false" title="Activar / desactivar sonido" aria-label="Activar / desactivar sonido">
+      <!-- Icono: altavoz con ondas -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" opacity="0.85"/>
+        <path d="M15 9a3 3 0 0 1 0 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M17 7a6 6 0 0 1 0 10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+      </svg>
+    </button>
+
     <button id="toggle-ampm" aria-pressed="false" title="Alternar 24h / 12h" aria-label="Alternar 24h / 12h">
       <!-- 12/24 dentro de un círculo -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -163,12 +173,14 @@
     /* ==========================================================
        ESTADO / REFERENCIAS DOM
        ========================================================== */
-    let use24h = false;     // false => 12h (sin sufijo)
-    let showSeconds = true; // controla anillo + segundos mini
+    let use24h = false;      // false => 12h (sin sufijo)
+    let showSeconds = true;  // controla anillo + segundos mini
+    let soundOn = false;     // sonido de tick/minuto
 
     const $clock     = document.getElementById('clock');
     const $btnAmPm   = document.getElementById('toggle-ampm');
     const $btnSec    = document.getElementById('toggle-seconds');
+    const $btnSound  = document.getElementById('toggle-sound');
     const $ring      = document.getElementById('secRing');
     const $ticks     = document.getElementById('ticks');
     const $prog      = document.getElementById('secProg');
@@ -179,7 +191,7 @@
     const R = 45;                                  // radio geométrico del aro (uu del viewBox)
     const STROKE_UU = 1.2;                         // grosor del trazo en uu del viewBox
     const C = 2 * Math.PI * R;                     // longitud de la circunferencia
-    const HIDE_AFTER = 1000;                        // ms sin interacción para ocultar controles/cursor
+    const HIDE_AFTER = 1000;                       // ms sin interacción para ocultar controles/cursor
 
     /* ==========================================================
        UTILIDADES
@@ -191,6 +203,35 @@
       if (!isFullscreen()) (docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.msRequestFullscreen).call(docEl);
       else (document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen).call(document);
     };
+
+    /* ==========================================================
+       AUDIO (Web Audio) — tick cada segundo y acento al minuto
+       ========================================================== */
+    let audioCtx = null;
+    function ensureAudio(){
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!audioCtx) audioCtx = new AC();
+        else if (audioCtx.state === 'suspended') audioCtx.resume();
+      } catch(_){ /* noop */ }
+    }
+    function beep(freq=1000, dur=0.06, vol=0.02){
+      if (!audioCtx) return;
+      const ctx = audioCtx;
+      const t = ctx.currentTime;
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+    function tickSecond(){ if (document.visibilityState !== 'visible') return; beep(1200, 0.04, 0.015); }
+    function tickMinute(){ if (document.visibilityState !== 'visible') return; beep(900, 0.05, 0.02); setTimeout(()=>beep(1400, 0.05, 0.02), 70); }
 
     /* ==========================================================
        RENDER PRINCIPAL (HH:MM) — repinta solo al cambiar de minuto
@@ -246,6 +287,8 @@
         if (lastSecond >= 0) __tickEls[lastSecond].classList.remove('active');
         __tickEls[sec].classList.add('active');
         lastSecond = sec;
+        // Sonido: tick cada segundo, doble-chirp al minuto
+        if (soundOn && audioCtx) { if (sec === 0) tickMinute(); else tickSecond(); }
       }
     }
 
@@ -265,15 +308,32 @@
     function updateButtons(){
       $btnAmPm.classList.toggle('active', !use24h);
       $btnAmPm.setAttribute('aria-pressed', String(!use24h));
+
       $btnSec.classList.toggle('active', showSeconds);
       $btnSec.setAttribute('aria-pressed', String(showSeconds));
       $ring.classList.toggle('hidden', !showSeconds);
       $miniSec.classList.toggle('hidden', !showSeconds);
+
+      $btnSound.classList.toggle('active', soundOn);
+      $btnSound.setAttribute('aria-pressed', String(soundOn));
     }
 
     // Persistencia
-    function savePrefs(){ try { localStorage.setItem(STORE_KEY, JSON.stringify({use24h, showSeconds})); } catch(_){} }
-    function loadPrefs(){ try { const v = JSON.parse(localStorage.getItem(STORE_KEY)); if (v) { use24h = !!v.use24h; showSeconds = !!v.showSeconds; } } catch(_){} }
+    function savePrefs(){
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({ use24h, showSeconds, soundOn }));
+      } catch(_){}
+    }
+    function loadPrefs(){
+      try {
+        const v = JSON.parse(localStorage.getItem(STORE_KEY));
+        if (v) {
+          use24h = !!v.use24h;
+          showSeconds = !!v.showSeconds;
+          soundOn = !!v.soundOn;
+        }
+      } catch(_){}
+    }
 
     // Wake Lock (evita suspensión de pantalla)
     let wakeLock = null;
@@ -284,17 +344,18 @@
           wakeLock = await navigator.wakeLock.request('screen');
           wakeLock.addEventListener('release', () => {});
         }
-      } catch(_){}
+      } catch(_){ /* noop */ }
     }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
-    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => requestWakeLock(), {passive:true}));
+    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => { requestWakeLock(); ensureAudio(); }, {passive:true}));
 
-    // Hotkeys: F pantalla completa, S segundero, P 12/24h
+    // Hotkeys: F pantalla completa, S segundero, P 12/24h, M sonido
     addEventListener('keydown', (e)=>{
       const k = e.key;
       if (k === 'f' || k === 'F') { e.preventDefault(); toggleFullscreen(); showControlsTemp(); return; }
       if (k === 's' || k === 'S') { e.preventDefault(); showSeconds = !showSeconds; updateButtons(); savePrefs(); showControlsTemp(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); use24h = !use24h; updateButtons(); drawTime(); savePrefs(); showControlsTemp(); return; }
+      if (k === 'm' || k === 'M') { e.preventDefault(); soundOn = !soundOn; if (soundOn) ensureAudio(); updateButtons(); savePrefs(); showControlsTemp(); return; }
     });
 
     // Doble click en cualquier lugar (excepto controles): alterna pantalla completa
@@ -328,7 +389,8 @@
 
     // Clicks en botones
     $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); drawTime(); savePrefs(); requestWakeLock(); });
-    $btnSec .addEventListener('click', () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); });
+    $btnSound.addEventListener('click', () => { soundOn = !soundOn; if (soundOn) ensureAudio(); updateButtons(); savePrefs(); requestWakeLock(); });
+    $btnSec  .addEventListener('click', () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); });
 
     // Auto-ocultar controles + cursor sincronizado
     let idleT;
@@ -350,6 +412,13 @@
       loop();
       requestWakeLock();
       showControlsTemp(); // muestra al entrar y programará su ocultado
+
+      // ====== Sanity checks (no afectan UI) ======
+      try {
+        console.assert(typeof drawTime === 'function', 'drawTime disponible');
+        console.assert(typeof loop === 'function', 'loop disponible');
+        console.assert($clock && $btnAmPm && $btnSec && $btnSound, 'DOM listo');
+      } catch(_){}
     })();
   </script>
 </body>
