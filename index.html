@@ -8,21 +8,20 @@
   <style>
     :root {
       --bg: #000;
-      --fg: #ffffff;                 /* color del texto */
-      --glow: rgba(255,255,255,.08); /* glow aún más reducido */
+      --fg: #ffffff;
+      --glow: rgba(255,255,255,.08);
       --btn-bg: rgba(255,255,255,.06);
       --btn-border: rgba(255,255,255,.18);
       --btn-active: rgba(255,255,255,.25);
+      --ring-track: rgba(255,255,255,.10);
+      --ring-progress: rgba(255,255,255,.45);
+      --tick: rgba(255,255,255,.22);
+      --ring-size: min(78vmin, 80vmin); /* diámetro del anillo */
     }
-    html, body {
-      height: 100%; margin: 0;
-      background: var(--bg); color: var(--fg);
-      overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent;
-      cursor: none;              /* sin cursor excepto en controles */
-    }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent; }
     .wrap { position: fixed; inset: 0; display: grid; place-items: center; }
 
-    /* Reloj centrado estable: ancho fijo mediante una "máscara" invisible */
+    /* Reloj centrado estable */
     .clock-box { position: relative; display:grid; place-items:center; }
     #clock {
       font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -30,12 +29,10 @@
       letter-spacing: .04em; white-space: nowrap;
       text-shadow: 0 0 .035em var(--glow), 0 0 .1em var(--glow);
       font-size: min(28vw, 28vh);
-      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
-      position: relative; z-index: 2; text-align:center;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; position: relative; z-index: 2; text-align:center;
     }
-    /* La máscara reserva el ancho máximo (88:88:88 o 88:88) para que el texto real no salte */
-    .clock-box::before{
-      content: attr(data-mask);
+    .clock-box::before{ /* reserva de ancho para evitar saltos */
+      content: '88:88';
       font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-weight: 700; line-height: 1; letter-spacing: .04em; white-space: nowrap;
       font-size: min(28vw, 28vh);
@@ -43,134 +40,219 @@
       visibility: hidden; pointer-events: none; user-select: none;
     }
 
-    .controls {
-      position: fixed; left: 50%; bottom: 2.2vh; transform: translateX(-50%);
-      display: flex; gap: .6rem; align-items: center; justify-content: center; opacity: .8;
+    /* Segundero circular (SVG) */
+    .sec-ring { position: absolute; width: var(--ring-size); height: var(--ring-size); z-index: 1; pointer-events: none; opacity: .9; }
+    .sec-ring.hidden { display: none; }
+    .sec-ring line { stroke: var(--tick); stroke-linecap: round; }
+    .sec-ring line.active { stroke: var(--ring-progress); stroke-width: .9; }
+    .sec-ring circle { fill: none; }
+
+    /* Segundos pequeños debajo del reloj */
+    #miniSec {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% + 2.4em));
+      font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 700; line-height: 1; letter-spacing: .04em; white-space: nowrap;
+      font-size: min(6vw, 6vh);
+      color: var(--fg); opacity: .9;
+      text-shadow: 0 0 .03em var(--glow), 0 0 .08em var(--glow);
     }
-    .controls button {
-      width: 36px; height: 36px; display: grid; place-items: center;
-      border-radius: 999px; background: var(--btn-bg); color: var(--fg);
-      border: 1px solid var(--btn-border); backdrop-filter: blur(2px);
-      cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .2s ease;
-    }
+    #miniSec.hidden { display:none; }
+
+    .controls { position: fixed; left: 50%; bottom: 2.2vh; transform: translateX(-50%); display: flex; gap: .6rem; align-items: center; justify-content: center; opacity: .8; will-change: opacity, transform; transition: opacity .45s cubic-bezier(.22,.61,.36,1), transform .45s cubic-bezier(.22,.61,.36,1); }
+    .controls button { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 999px; background: var(--btn-bg); color: var(--fg); border: 1px solid var(--btn-border); backdrop-filter: blur(2px); cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .2s ease; }
     .controls button:hover { opacity: 1; }
     .controls button.active { background: var(--btn-active); border-color: var(--fg); }
     .controls svg { width: 18px; height: 18px; fill: currentColor; }
-
-    /* mostrar cursor al pasar por controles */
     .controls, .controls * { cursor: pointer; }
-
-    @media print { .controls { display:none; } }
+    .controls.hidden { opacity: 0; transform: translate(-50%, 12px) scale(.98); pointer-events: none; }
+    body.hide-cursor { cursor: none; }
+    @media print { .controls { display:none; } } { .controls { display:none; } }
   </style>
 </head>
 <body>
   <div class="wrap" aria-hidden="true">
-    <div class="clock-box" id="clockBox" data-mask="88:88:88"><div id="clock">00:00:00</div></div>
+    <div class="clock-box" id="clockBox">
+      <!-- Segundero circular detrás -->
+      <svg class="sec-ring" id="secRing" viewBox="0 0 100 100" aria-hidden="true">
+        <defs>
+          <mask id="ringMask">
+            <rect x="0" y="0" width="100" height="100" fill="white"/>
+          </mask>
+        </defs>
+        <g id="ticks"></g>
+        <circle class="track" id="secTrack" cx="50" cy="50" r="45" />
+        <circle class="progress" id="secProg" cx="50" cy="50" r="45" />
+      </svg>
+      <div id="clock">00:00</div>
+      <div id="miniSec" aria-hidden="true">:00</div>
+    </div>
   </div>
 
   <div class="controls" role="group" aria-label="Ajustes del reloj">
     <button id="toggle-ampm" aria-pressed="false" title="Alternar 24h / 12h" aria-label="Alternar 24h / 12h">
-      <!-- Icono: 12/24 en un reloj -->
+      <!-- Icono claro: 12 sobre 24 dentro de un círculo -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10V6h-2v8h6v-2h-4Zm-5 3h2v2H8v-2Z"/>
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="12" y="9" text-anchor="middle" font-size="6" font-family="ui-monospace, monospace">12</text>
+        <text x="12" y="17" text-anchor="middle" font-size="6" font-family="ui-monospace, monospace">24</text>
       </svg>
     </button>
-    <button id="toggle-seconds" aria-pressed="true" class="active" title="Mostrar / ocultar segundos" aria-label="Mostrar / ocultar segundos">
-      <!-- Icono: dígitos -->
+    <button id="toggle-seconds" aria-pressed="true" class="active" title="Mostrar / ocultar segundero circular" aria-label="Mostrar / ocultar segundero circular">
+      <!-- Icono claro: aro con ticks y un arco -->
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M3 7h6v10H3V7Zm2 2v6h2V9H5Zm6-2h10v10H11V7Zm2 2v6h6V9h-6Z"/>
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1" opacity="0.6"/>
+        <path d="M12 3 A9 9 0 0 1 20 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="12" y1="3" x2="12" y2="5" stroke="currentColor" stroke-width="1"/>
+        <line x1="21" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="1"/>
+        <line x1="3" y1="12" x2="5" y2="12" stroke="currentColor" stroke-width="1"/>
+        <line x1="12" y1="21" x2="12" y2="19" stroke="currentColor" stroke-width="1"/>
       </svg>
     </button>
   </div>
 
   <script>
-    // === Compatibilidad Wake Lock (Brave/Chromium) ===
-    // Requiere HTTPS y un gesto del usuario; se libera al minimizar o dormir el SO.
-
     // Estado inicial
-    let use24h = false;     // false => 12h (sin sufijo), true => 24h
-    let showSeconds = true; // mostrar segundos
+    let use24h = false;     // false => 12h (sin sufijo)
+    let showSeconds = true; // ahora controla el anillo, no dígitos
 
     const $clock = document.getElementById('clock');
-    const $clockBox = document.getElementById('clockBox');
     const $btnAmPm = document.getElementById('toggle-ampm');
     const $btnSec  = document.getElementById('toggle-seconds');
+    const $ring    = document.getElementById('secRing');
+    const $ticks   = document.getElementById('ticks');
+    const $prog    = document.getElementById('secProg');
+    const $miniSec = document.getElementById('miniSec');
+    const $controls = document.querySelector('.controls');
 
     function pad(n){ return n.toString().padStart(2,'0'); }
 
-    function draw() {
+    function drawTime(){
       const now = new Date();
       let h = now.getHours();
-      if (!use24h) h = (h % 12) || 12; // 12h sin AM/PM
+      if (!use24h) h = (h % 12) || 12;
       const m = now.getMinutes();
-      const s = now.getSeconds();
-      $clock.textContent = showSeconds ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}`;
+      $clock.textContent = `${pad(h)}:${pad(m)}`; // siempre HH:MM
     }
 
-    // Actualiza la máscara para fijar ancho y evitar "saltos" al centrar
-    function updateMask(){
-      $clockBox.setAttribute('data-mask', showSeconds ? '88:88:88' : '88:88');
+    // Segundero circular: barra de progreso suave 0..60s
+    const R = 45; // radio geométrico (línea media del trazo)
+    const STROKE_UU = 1.2; // grosor en unidades del viewBox (alineación perfecta)
+    const C = 2 * Math.PI * R;
+    $prog.setAttribute('stroke-dasharray', C.toFixed(3));
+    // fija stroke-width en unidades del viewBox
+    document.getElementById('secTrack').setAttribute('stroke-width', STROKE_UU);
+    $prog.setAttribute('stroke-width', STROKE_UU);
+
+    // Generar marcas de segundos (60) con 12 más largas
+    (function buildTicks(){
+      const center = 50, rLineEnd = R; // termina en la línea media del anillo
+      const long = 4.4, short = 2.2;   // longitud de marcas
+      window.__tickEls = [];
+      for (let i = 0; i < 60; i++) {
+        const angle = ((i / 60) * 2 * Math.PI) - Math.PI / 2; // -90° (arriba)
+        const len = (i % 5 === 0) ? long : short; // 12 marcas más largas
+        const r1 = rLineEnd - len; // punto interior
+        const x1 = center + r1 * Math.cos(angle);
+        const y1 = center + r1 * Math.sin(angle);
+        const x2 = center + rLineEnd * Math.cos(angle);
+        const y2 = center + rLineEnd * Math.sin(angle);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1.toFixed(3));
+        line.setAttribute('y1', y1.toFixed(3));
+        line.setAttribute('x2', x2.toFixed(3));
+        line.setAttribute('y2', y2.toFixed(3));
+        line.setAttribute('stroke-width', (i % 5 === 0) ? '0.9' : '0.6');
+        $ticks.appendChild(line);
+        __tickEls.push(line);
+      }
+    })();
+
+    let lastSecond = -1;
+    function drawSeconds(progress){
+      if ($ring.classList.contains('hidden')) return;
+      const offset = C * (1 - progress);
+      $prog.setAttribute('stroke-dashoffset', offset.toFixed(3));
+      // Resalta la marca del segundo actual
+      const sec = Math.floor(progress * 60) % 60;
+      if (sec !== lastSecond) {
+        if (lastSecond >= 0) __tickEls[lastSecond].classList.remove('active');
+        __tickEls[sec].classList.add('active');
+        lastSecond = sec;
+      }
     }
 
-    // Bucle sincronizado al segundo
-    function tick(){
-      draw();
-      const ms = 1000 - (new Date().getMilliseconds());
-      setTimeout(()=> requestAnimationFrame(tick), ms);
+    // Bucle de actualización continuo (60 fps) para animación fluida
+    let lastMinute = -1;
+    function loop(){
+      const now = new Date();
+      const msInMinute = now.getSeconds() * 1000 + now.getMilliseconds();
+      const progress = msInMinute / 60000; // 0..1 continuo
+      drawSeconds(progress);
+      if (showSeconds) { $miniSec.textContent = ':' + pad(now.getSeconds()); }
+      if (now.getMinutes() !== lastMinute) { lastMinute = now.getMinutes(); drawTime(); }
+      requestAnimationFrame(loop);
     }
 
-    // Controles
+    // Controles y estado visual
     function updateButtons(){
       $btnAmPm.classList.toggle('active', !use24h);
       $btnAmPm.setAttribute('aria-pressed', String(!use24h));
       $btnSec.classList.toggle('active', showSeconds);
       $btnSec.setAttribute('aria-pressed', String(showSeconds));
+      $ring.classList.toggle('hidden', !showSeconds);
+      $miniSec.classList.toggle('hidden', !showSeconds);
     }
-    $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); draw(); requestWakeLock(); });
-    $btnSec.addEventListener('click',  () => { showSeconds = !showSeconds; updateButtons(); updateMask(); draw(); requestWakeLock(); });
 
-    // Wake Lock para evitar suspensión de pantalla (cuando sea posible)
+    $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); drawTime(); savePrefs(); requestWakeLock(); });
+    $btnSec.addEventListener('click',  () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); });
+
+    // Wake Lock para evitar suspensión (Chromium/Brave)
     let wakeLock = null;
     async function requestWakeLock(){
       try {
         if ('wakeLock' in navigator) {
           if (wakeLock) { await wakeLock.release().catch(()=>{}); wakeLock = null; }
           wakeLock = await navigator.wakeLock.request('screen');
-          wakeLock.addEventListener('release', () => { /* liberado (p.ej., se minimizó) */ });
+          wakeLock.addEventListener('release', () => {});
         }
-      } catch (err) { /* algunos navegadores requieren gesto del usuario; Brave suele soportarlo */ }
+      } catch (_) {}
     }
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') requestWakeLock();
-    });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
     ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => requestWakeLock(), { passive:true }));
 
     // Pantalla completa (tecla F)
-    function isFullscreen(){
-      return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-    }
-    function toggleFullscreen(){
-      const docEl = document.documentElement;
-      if (!isFullscreen()) {
-        (docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen).call(docEl);
-      } else {
-        (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen).call(document);
-      }
-    }
+    function isFullscreen(){ return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement; }
+    function toggleFullscreen(){ const docEl = document.documentElement; if (!isFullscreen()) {(docEl.requestFullscreen||docEl.webkitRequestFullscreen||docEl.msRequestFullscreen).call(docEl);} else {(document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen).call(document);} }
     addEventListener('keydown', (e)=>{
       const k = e.key;
-      if (k === 'f' || k === 'F') { e.preventDefault(); toggleFullscreen(); return; }
-      if (k === 's' || k === 'S') { e.preventDefault(); showSeconds = !showSeconds; updateButtons(); updateMask(); draw(); requestWakeLock(); return; }
-      if (k === 'p' || k === 'P') { e.preventDefault(); use24h = !use24h; updateButtons(); draw(); requestWakeLock(); return; }
+      if (k === 'f' || k === 'F') { e.preventDefault(); toggleFullscreen(); showControlsTemp(); return; }
+      if (k === 's' || k === 'S') { e.preventDefault(); showSeconds = !showSeconds; updateButtons(); savePrefs(); showControlsTemp(); return; }
+      if (k === 'p' || k === 'P') { e.preventDefault(); use24h = !use24h; updateButtons(); drawTime(); savePrefs(); showControlsTemp(); return; }
     });
 
-    // Boot
+    // Preferencias (persistencia)
+    const STORE_KEY = 'robert-clock:v1';
+    function savePrefs(){ try { localStorage.setItem(STORE_KEY, JSON.stringify({use24h, showSeconds})); } catch(_){} }
+    function loadPrefs(){ try { const v = JSON.parse(localStorage.getItem(STORE_KEY)); if (v) { use24h = !!v.use24h; showSeconds = !!v.showSeconds; } } catch(_){} }
+
+    // Auto-ocultar controles
+    let idleT; const HIDE_AFTER = 1000;
+    function showControlsTemp(){
+      $controls.classList.remove('hidden');
+      document.body.classList.remove('hide-cursor');
+      clearTimeout(idleT);
+      idleT = setTimeout(()=> { $controls.classList.add('hidden'); document.body.classList.add('hide-cursor'); }, HIDE_AFTER);
+    }
+    ['mousemove','touchstart','click'].forEach(evt => addEventListener(evt, showControlsTemp, {passive:true}));
+
+    // Init
     (function init(){
+      loadPrefs();
       updateButtons();
-      updateMask();
-      draw();
-      tick();
+      drawTime();
+      loop();
       requestWakeLock();
+      showControlsTemp();
     })();
   </script>
 </body>
