@@ -4,98 +4,174 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Reloj</title>
-  <!-- Fuente estilo reloj digital; si no carga, cae a monospace -->
   <link href="https://fonts.cdnfonts.com/css/ds-digital" rel="stylesheet">
   <style>
     :root {
       --bg: #000;
-      --fg: #ffffff;
-      --glow: rgba(255,255,255,0.35);
+      --fg: #ffffff;                 /* color del texto */
+      --glow: rgba(255,255,255,.08); /* glow aún más reducido */
+      --btn-bg: rgba(255,255,255,.06);
+      --btn-border: rgba(255,255,255,.18);
+      --btn-active: rgba(255,255,255,.25);
     }
     html, body {
-      height: 100%;
-      margin: 0;
-      background: var(--bg);
-      color: var(--fg);
-      overflow: hidden;          /* nada de scroll */
-      user-select: none;         /* no seleccionable */
-      -webkit-tap-highlight-color: transparent;
-      cursor: none;              /* no cursor visible */
+      height: 100%; margin: 0;
+      background: var(--bg); color: var(--fg);
+      overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent;
+      cursor: none;              /* sin cursor excepto en controles */
     }
-    /* Contenedor centrado absoluto */
-    .wrap {
-      position: fixed;
-      inset: 0;
-      display: grid;
-      place-items: center;
-    }
-    /* La hora en grande, responsiva a viewport */
+    .wrap { position: fixed; inset: 0; display: grid; place-items: center; }
+
+    /* Reloj centrado estable: ancho fijo mediante una "máscara" invisible */
+    .clock-box { position: relative; display:grid; place-items:center; }
     #clock {
       font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-weight: 700;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: .04em;
-      text-shadow: 0 0 .15em var(--glow), 0 0 .35em var(--glow);
-      /* Tamaño responsivo: escala con el lado menor del viewport */
-      font-size: min(22vw, 22vh);
-      white-space: nowrap;
+      font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+      letter-spacing: .04em; white-space: nowrap;
+      text-shadow: 0 0 .035em var(--glow), 0 0 .1em var(--glow);
+      font-size: min(28vw, 28vh);
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+      position: relative; z-index: 2; text-align:center;
     }
-    /* Oculta cualquier mensaje de selección o enfoque visual */
-    :focus { outline: none; }
-
-    /* Mantén el texto nítido en distintos navegadores */
-    #clock { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-
-    /* Fallback discreto si la fuente externa no carga (detectando ancho medio) */
-    @supports not (font-variation-settings: normal) {
-      #clock { letter-spacing: .02em; }
+    /* La máscara reserva el ancho máximo (88:88:88 o 88:88) para que el texto real no salte */
+    .clock-box::before{
+      content: attr(data-mask);
+      font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 700; line-height: 1; letter-spacing: .04em; white-space: nowrap;
+      font-size: min(28vw, 28vh);
+      position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      visibility: hidden; pointer-events: none; user-select: none;
     }
+
+    .controls {
+      position: fixed; left: 50%; bottom: 2.2vh; transform: translateX(-50%);
+      display: flex; gap: .6rem; align-items: center; justify-content: center; opacity: .8;
+    }
+    .controls button {
+      width: 36px; height: 36px; display: grid; place-items: center;
+      border-radius: 999px; background: var(--btn-bg); color: var(--fg);
+      border: 1px solid var(--btn-border); backdrop-filter: blur(2px);
+      cursor: pointer; transition: background .15s ease, border-color .15s ease, opacity .2s ease;
+    }
+    .controls button:hover { opacity: 1; }
+    .controls button.active { background: var(--btn-active); border-color: var(--fg); }
+    .controls svg { width: 18px; height: 18px; fill: currentColor; }
+
+    /* mostrar cursor al pasar por controles */
+    .controls, .controls * { cursor: pointer; }
+
+    @media print { .controls { display:none; } }
   </style>
 </head>
 <body>
-  <div class="wrap" aria-hidden="true"><div id="clock">00:00:00</div></div>
+  <div class="wrap" aria-hidden="true">
+    <div class="clock-box" id="clockBox" data-mask="88:88:88"><div id="clock">00:00:00</div></div>
+  </div>
+
+  <div class="controls" role="group" aria-label="Ajustes del reloj">
+    <button id="toggle-ampm" aria-pressed="false" title="Alternar 24h / 12h" aria-label="Alternar 24h / 12h">
+      <!-- Icono: 12/24 en un reloj -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1 10V6h-2v8h6v-2h-4Zm-5 3h2v2H8v-2Z"/>
+      </svg>
+    </button>
+    <button id="toggle-seconds" aria-pressed="true" class="active" title="Mostrar / ocultar segundos" aria-label="Mostrar / ocultar segundos">
+      <!-- Icono: dígitos -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 7h6v10H3V7Zm2 2v6h2V9H5Zm6-2h10v10H11V7Zm2 2v6h6V9h-6Z"/>
+      </svg>
+    </button>
+  </div>
 
   <script>
-    // Ajusta tu formato aquí:
-    const USE_24H = false;   // true = 24h, false = 12h con AM/PM (pero sin mostrar el sufijo)
-    const SHOW_SECONDS = true; // muestra segundos
+    // === Compatibilidad Wake Lock (Brave/Chromium) ===
+    // Requiere HTTPS y un gesto del usuario; se libera al minimizar o dormir el SO.
+
+    // Estado inicial
+    let use24h = false;     // false => 12h (sin sufijo), true => 24h
+    let showSeconds = true; // mostrar segundos
+
+    const $clock = document.getElementById('clock');
+    const $clockBox = document.getElementById('clockBox');
+    const $btnAmPm = document.getElementById('toggle-ampm');
+    const $btnSec  = document.getElementById('toggle-seconds');
 
     function pad(n){ return n.toString().padStart(2,'0'); }
 
-    function render() {
+    function draw() {
       const now = new Date();
       let h = now.getHours();
-      if (!USE_24H) h = (h % 12) || 12; // 12h sin AM/PM
+      if (!use24h) h = (h % 12) || 12; // 12h sin AM/PM
       const m = now.getMinutes();
       const s = now.getSeconds();
-      const text = SHOW_SECONDS ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}`;
-      clock.textContent = text;
-      requestAnimationFrame(tick);
+      $clock.textContent = showSeconds ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}`;
     }
 
-    let lastSecond = -1;
+    // Actualiza la máscara para fijar ancho y evitar "saltos" al centrar
+    function updateMask(){
+      $clockBox.setAttribute('data-mask', showSeconds ? '88:88:88' : '88:88');
+    }
+
+    // Bucle sincronizado al segundo
     function tick(){
-      const now = new Date();
-      if (now.getSeconds() !== lastSecond) {
-        lastSecond = now.getSeconds();
-        render();
+      draw();
+      const ms = 1000 - (new Date().getMilliseconds());
+      setTimeout(()=> requestAnimationFrame(tick), ms);
+    }
+
+    // Controles
+    function updateButtons(){
+      $btnAmPm.classList.toggle('active', !use24h);
+      $btnAmPm.setAttribute('aria-pressed', String(!use24h));
+      $btnSec.classList.toggle('active', showSeconds);
+      $btnSec.setAttribute('aria-pressed', String(showSeconds));
+    }
+    $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); draw(); requestWakeLock(); });
+    $btnSec.addEventListener('click',  () => { showSeconds = !showSeconds; updateButtons(); updateMask(); draw(); requestWakeLock(); });
+
+    // Wake Lock para evitar suspensión de pantalla (cuando sea posible)
+    let wakeLock = null;
+    async function requestWakeLock(){
+      try {
+        if ('wakeLock' in navigator) {
+          if (wakeLock) { await wakeLock.release().catch(()=>{}); wakeLock = null; }
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => { /* liberado (p.ej., se minimizó) */ });
+        }
+      } catch (err) { /* algunos navegadores requieren gesto del usuario; Brave suele soportarlo */ }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') requestWakeLock();
+    });
+    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => requestWakeLock(), { passive:true }));
+
+    // Pantalla completa (tecla F)
+    function isFullscreen(){
+      return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+    }
+    function toggleFullscreen(){
+      const docEl = document.documentElement;
+      if (!isFullscreen()) {
+        (docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen).call(docEl);
       } else {
-        requestAnimationFrame(tick);
+        (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen).call(document);
       }
     }
+    addEventListener('keydown', (e)=>{
+      const k = e.key;
+      if (k === 'f' || k === 'F') { e.preventDefault(); toggleFullscreen(); return; }
+      if (k === 's' || k === 'S') { e.preventDefault(); showSeconds = !showSeconds; updateButtons(); updateMask(); draw(); requestWakeLock(); return; }
+      if (k === 'p' || k === 'P') { e.preventDefault(); use24h = !use24h; updateButtons(); draw(); requestWakeLock(); return; }
+    });
 
-    // Despierta rápido y sincroniza al segundo
-    (function boot(){
-      // Primera pintura inmediata
-      render();
-      // Re-sincroniza justo al inicio del siguiente segundo para precisión visual
-      const ms = new Date().getMilliseconds();
-      setTimeout(()=>requestAnimationFrame(tick), 1000 - ms);
+    // Boot
+    (function init(){
+      updateButtons();
+      updateMask();
+      draw();
+      tick();
+      requestWakeLock();
     })();
-
-    // Evita que el dispositivo se atenúe fácilmente en móviles con interacción ocasional
-    addEventListener('touchstart', () => {}, {passive: true});
   </script>
 </body>
 </html>
