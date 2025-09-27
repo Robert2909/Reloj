@@ -21,10 +21,11 @@
       --btn-active: rgba(255,255,255,.25);
 
       /* Segundero circular */
-      --ring-track: rgba(255,255,255,.10);  /* carril base */
-      --ring-progress: rgba(255,255,255,.45);/* progreso/realce */
-      --tick: rgba(255,255,255,.22);        /* marcas de segundo */
-      --ring-size: min(86vmin, 88vmin);     /* diámetro del aro */
+      --ring-track: rgba(255,255,255,.10);        /* carril base */
+      --ring-progress: rgba(255,255,255,.85);     /* progreso casi blanco */
+      --tick: rgba(255,255,255,.22);              /* marcas no transitadas */
+      --tick-elapsed: rgba(255,255,255,.75);      /* marcas transitadas */
+      --ring-size: min(86vmin, 88vmin);           /* diámetro del aro */
     }
 
     /* ==========================================================
@@ -80,6 +81,7 @@
     .sec-ring.hidden { display: none; }
     .sec-ring circle { fill: none; }
     .sec-ring line { stroke: var(--tick); stroke-linecap: round; }
+    .sec-ring line.elapsed { stroke: var(--tick-elapsed); }
     .sec-ring line.active { stroke: var(--ring-progress); stroke-width: .9; }
 
     /* Segundos mini bajo HH:MM (sin interferir con centrado) */
@@ -116,6 +118,9 @@
     body.hide-cursor { cursor: none; }
 
     @media print { .controls { display: none; } }
+    .toast { position: fixed; left: 50%; bottom: calc(2.2vh + 56px); transform: translateX(-50%); background: rgba(255,255,255,.08); color: var(--fg); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: .4rem .8rem; font-size: 13px; line-height: 1; opacity: .95; backdrop-filter: blur(2px); transition: opacity .35s ease, transform .35s ease; display: flex; align-items: center; gap: .4rem; }
+    .toast.hidden { opacity: 0; transform: translate(-50%, 2px) scale(.99); pointer-events: none; }
+
   </style>
 </head>
 <body>
@@ -168,6 +173,12 @@
     </button>
   </div>
 
+  <!-- Aviso discreto para habilitar audio si el navegador lo bloquea -->
+  <div id="audioHint" class="toast hidden" role="status" aria-live="polite">
+    <span aria-hidden="true">🔈</span>
+    <span>Para habilitar sonido, toca la pantalla o presiona <strong>M</strong>.</span>
+  </div>
+
   <script>
     'use strict';
     /* ==========================================================
@@ -186,6 +197,7 @@
     const $prog      = document.getElementById('secProg');
     const $miniSec   = document.getElementById('miniSec');
     const $controls  = document.querySelector('.controls');
+    const $audioHint = document.getElementById('audioHint');
 
     const STORE_KEY = 'robert-clock:v1';          // clave de persistencia
     const R = 45;                                  // radio geométrico del aro (uu del viewBox)
@@ -205,33 +217,104 @@
     };
 
     /* ==========================================================
-       AUDIO (Web Audio) — tick cada segundo y acento al minuto
+       AUDIO (Web Audio) — tick analógico y campanita de minuto
        ========================================================== */
     let audioCtx = null;
+    let masterOut = null;
+    const MASTER_GAIN = 1.6; // volumen global (sube/baja todo el sistema de audio)
+
     function ensureAudio(){
       try {
         const AC = window.AudioContext || window.webkitAudioContext;
-        if (!AC) return;
+        if (!AC) return false;
         if (!audioCtx) audioCtx = new AC();
         else if (audioCtx.state === 'suspended') audioCtx.resume();
-      } catch(_){ /* noop */ }
+        if (audioCtx && !masterOut){
+          masterOut = audioCtx.createGain();
+          masterOut.gain.setValueAtTime(MASTER_GAIN, audioCtx.currentTime);
+          masterOut.connect(audioCtx.destination);
+        }
+        return !!(audioCtx && audioCtx.state !== 'closed');
+      } catch(_){ return false; }
     }
-    function beep(freq=1000, dur=0.06, vol=0.02){
-      if (!audioCtx) return;
-      const ctx = audioCtx;
-      const t = ctx.currentTime;
-      const o = ctx.createOscillator();
+
+    // Tick analógico: ruido band-pass + tono corto, cómodo y hogareño
+    function playTick(){
+      if (!audioCtx || !masterOut) return;
+      const ctx = audioCtx; const t = ctx.currentTime;
+      // Ruido (click mecánico)
+      const dur = 0.08;
+      const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random()*2-1) * (1 - i/data.length);
+      const noise = ctx.createBufferSource(); noise.buffer = buf;
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 5;
       const g = ctx.createGain();
-      o.type = 'square';
-      o.frequency.setValueAtTime(freq, t);
+      const peak = 0.085; // ↑ un poco el volumen del tick (sin cambiar tono)
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(vol, t + 0.005);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(t); o.stop(t + dur + 0.02);
+      g.gain.linearRampToValueAtTime(peak, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      noise.connect(bp); bp.connect(g); g.connect(masterOut);
+      noise.start(t); noise.stop(t + dur);
+      // Tono corto de cuerpo
+      const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.setValueAtTime(1050, t);
+      const g2 = ctx.createGain(); g2.gain.setValueAtTime(0.055, t); g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      osc.connect(g2); g2.connect(masterOut); osc.start(t); osc.stop(t + 0.06);
     }
-    function tickSecond(){ if (document.visibilityState !== 'visible') return; beep(1200, 0.04, 0.015); }
-    function tickMinute(){ if (document.visibilityState !== 'visible') return; beep(900, 0.05, 0.02); setTimeout(()=>beep(1400, 0.05, 0.02), 70); }
+
+    // Campanita dulce para el minuto: parciales + cola suave (timbre)
+    function playChimeMinute(){
+      if (!audioCtx || !masterOut) return;
+      const ctx = audioCtx; const t = ctx.currentTime;
+      // Mezcla principal con envolvente más larga pero algo más contenida
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0, t);
+      master.gain.linearRampToValueAtTime(0.14, t + 0.006); // volumen más balanceado
+      master.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      master.connect(masterOut);
+
+      // Parciales de campanita (un solo toque dulce)
+      const base = 1500;
+      const parts = [
+        { f: base*1.00, g: 0.95, d: 0.60 },
+        { f: base*1.35, g: 0.55, d: 0.52 },
+        { f: base*2.10, g: 0.35, d: 0.46 },
+        { f: base*2.90, g: 0.22, d: 0.40 }
+      ];
+      parts.forEach(p => {
+        const o = ctx.createOscillator(); o.type = 'sine';
+        const g = ctx.createGain();
+        o.frequency.setValueAtTime(p.f, t);
+        g.gain.setValueAtTime(p.g, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + p.d);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + p.d + 0.02);
+      });
+
+      // Ataque sutil tipo macito (breve, dulce)
+      const atk = ctx.createOscillator(); atk.type = 'triangle'; atk.frequency.setValueAtTime(base*1.7, t);
+      const atkG = ctx.createGain(); atkG.gain.setValueAtTime(0.045, t); atkG.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      atk.connect(atkG); atkG.connect(master); atk.start(t); atk.stop(t + 0.06);
+
+      // Cola/eco muy corto (un solo tap) para sensación de difuminado
+      const d = ctx.createDelay(0.5); d.delayTime.setValueAtTime(0.12, t);
+      const fb = ctx.createGain(); fb.gain.setValueAtTime(0.10, t);
+      master.connect(d); d.connect(fb); fb.connect(d); d.connect(masterOut);
+    }
+
+    let lastBeepAt = 0;
+    function tickSecond(){
+      const now = performance.now();
+      if (now - lastBeepAt < 280) return; // evita dobles disparos al cambiar visibilidad
+      lastBeepAt = now;
+      playTick();
+    }
+    function tickMinute(){
+      const now = performance.now();
+      if (now - lastBeepAt < 280) return; // evita dobles disparos
+      lastBeepAt = now;
+      playChimeMinute();
+    }
 
     /* ==========================================================
        RENDER PRINCIPAL (HH:MM) — repinta solo al cambiar de minuto
@@ -278,16 +361,39 @@
     })();
 
     let lastSecond = -1, lastMinute = -1;
+    // Sincroniza anillo y marcas con el tiempo real (útil al volver de pestaña oculta)
+    function syncSecondsVisualNow(){
+      const now = new Date();
+      const progress = (now.getSeconds()*1000 + now.getMilliseconds()) / 60000; // 0..1
+      const sec = now.getSeconds();
+      // actualizar arco
+      const offset = C * (1 - progress);
+      $prog.setAttribute('stroke-dashoffset', offset.toFixed(3));
+      // limpiar y marcar acumulado correcto
+      for (let i = 0; i < 60; i++) __tickEls[i].classList.remove('elapsed','active');
+      for (let i = 0; i <= sec; i++) __tickEls[i].classList.add('elapsed');
+      __tickEls[sec].classList.add('active');
+      lastSecond = sec;
+      lastMinute = now.getMinutes();
+      if (showSeconds) $miniSec.textContent = ':' + pad(sec);
+    }
     function drawSeconds(progress){
       if ($ring.classList.contains('hidden')) return;
       const offset = C * (1 - progress);
       $prog.setAttribute('stroke-dashoffset', offset.toFixed(3));
-      const sec = Math.floor(progress * 60) % 60;     // tick activo
+      const sec = Math.floor(progress * 60) % 60; // segundo actual 0..59
       if (sec !== lastSecond) {
+        // reset de minuto: limpiar todas las marcas al llegar a 0
+        if (sec === 0) {
+          for (let i = 0; i < 60; i++) { __tickEls[i].classList.remove('elapsed','active'); }
+        }
+        // acumular: marcar como 'elapsed' todas las marcas hasta el segundo actual (incluida)
+        for (let i = 0; i <= sec; i++) { __tickEls[i].classList.add('elapsed'); }
+        // mover resaltado del segundo activo
         if (lastSecond >= 0) __tickEls[lastSecond].classList.remove('active');
         __tickEls[sec].classList.add('active');
         lastSecond = sec;
-        // Sonido: tick cada segundo, doble-chirp al minuto
+        // Sonido
         if (soundOn && audioCtx) { if (sec === 0) tickMinute(); else tickSecond(); }
       }
     }
@@ -303,8 +409,8 @@
     }
 
     /* ==========================================================
-       CONTROLES / PREFERENCIAS / WAKE LOCK
-       ========================================================== */
+      CONTROLES / PREFERENCIAS / WAKE LOCK
+      ========================================================== */
     function updateButtons(){
       $btnAmPm.classList.toggle('active', !use24h);
       $btnAmPm.setAttribute('aria-pressed', String(!use24h));
@@ -322,7 +428,7 @@
     function savePrefs(){
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify({ use24h, showSeconds, soundOn }));
-      } catch(_){}
+      } catch(_){/* noop */}
     }
     function loadPrefs(){
       try {
@@ -332,7 +438,7 @@
           showSeconds = !!v.showSeconds;
           soundOn = !!v.soundOn;
         }
-      } catch(_){}
+      } catch(_){/* noop */}
     }
 
     // Wake Lock (evita suspensión de pantalla)
@@ -346,16 +452,44 @@
         }
       } catch(_){ /* noop */ }
     }
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
-    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => { requestWakeLock(); ensureAudio(); }, {passive:true}));
+
+    // Ticker en segundo plano (para que suene aunque la pestaña no esté al frente)
+    let bgTimer = null, lastSecondEmit = -1;
+    function startBgTicker(){
+      if (bgTimer) return;
+      bgTimer = setInterval(()=>{
+        const now = new Date();
+        const s = now.getSeconds();
+        if (s !== lastSecondEmit) {
+          if (soundOn && audioCtx) { if (s === 0) tickMinute(); else tickSecond(); }
+          lastSecondEmit = s;
+        }
+      }, 250); // chequeo fino; navegadores pueden reducir a >=1s en segundo plano
+    }
+    function stopBgTicker(){ if (bgTimer) { clearInterval(bgTimer); bgTimer = null; } }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+        stopBgTicker();
+        lastSecondEmit = -1; // forzar primer tick limpio si vuelve al fondo
+        // re-sincronizar visual del anillo y HH:MM al instante
+        syncSecondsVisualNow();
+        drawTime();
+      } else {
+        startBgTicker();
+      }
+    });
+
+    ['click','keydown','touchstart'].forEach(evt => addEventListener(evt, () => { requestWakeLock(); if (ensureAudio()) $audioHint.classList.add('hidden'); }, {passive:true}));
 
     // Hotkeys: F pantalla completa, S segundero, P 12/24h, M sonido
     addEventListener('keydown', (e)=>{
       const k = e.key;
       if (k === 'f' || k === 'F') { e.preventDefault(); toggleFullscreen(); showControlsTemp(); return; }
-      if (k === 's' || k === 'S') { e.preventDefault(); showSeconds = !showSeconds; updateButtons(); savePrefs(); showControlsTemp(); return; }
+      if (k === 's' || k === 'S') { e.preventDefault(); showSeconds = !showSeconds; updateButtons(); savePrefs(); if (showSeconds) syncSecondsVisualNow(); showControlsTemp(); return; }
       if (k === 'p' || k === 'P') { e.preventDefault(); use24h = !use24h; updateButtons(); drawTime(); savePrefs(); showControlsTemp(); return; }
-      if (k === 'm' || k === 'M') { e.preventDefault(); soundOn = !soundOn; if (soundOn) ensureAudio(); updateButtons(); savePrefs(); showControlsTemp(); return; }
+      if (k === 'm' || k === 'M') { e.preventDefault(); soundOn = !soundOn; if (soundOn) { if (!ensureAudio()) $audioHint.classList.remove('hidden'); } else { $audioHint.classList.add('hidden'); } updateButtons(); savePrefs(); showControlsTemp(); return; }
     });
 
     // Doble click en cualquier lugar (excepto controles): alterna pantalla completa
@@ -389,8 +523,8 @@
 
     // Clicks en botones
     $btnAmPm.addEventListener('click', () => { use24h = !use24h; updateButtons(); drawTime(); savePrefs(); requestWakeLock(); });
-    $btnSound.addEventListener('click', () => { soundOn = !soundOn; if (soundOn) ensureAudio(); updateButtons(); savePrefs(); requestWakeLock(); });
-    $btnSec  .addEventListener('click', () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); });
+    $btnSound.addEventListener('click', () => { soundOn = !soundOn; if (soundOn) { if (!ensureAudio()) $audioHint.classList.remove('hidden'); } else { $audioHint.classList.add('hidden'); } updateButtons(); savePrefs(); requestWakeLock(); });
+    $btnSec  .addEventListener('click', () => { showSeconds = !showSeconds; updateButtons(); savePrefs(); requestWakeLock(); if (showSeconds) syncSecondsVisualNow(); });
 
     // Auto-ocultar controles + cursor sincronizado
     let idleT;
@@ -411,14 +545,21 @@
       drawTime();
       loop();
       requestWakeLock();
+      // Intento proactivo de habilitar audio al cargar
+      const ok = ensureAudio();
+      if (!ok && soundOn) { $audioHint.classList.remove('hidden'); }
       showControlsTemp(); // muestra al entrar y programará su ocultado
+
+      // Si inicia oculto, arranca ticker de fondo
+      if (document.hidden) startBgTicker();
 
       // ====== Sanity checks (no afectan UI) ======
       try {
         console.assert(typeof drawTime === 'function', 'drawTime disponible');
         console.assert(typeof loop === 'function', 'loop disponible');
         console.assert($clock && $btnAmPm && $btnSec && $btnSound, 'DOM listo');
-      } catch(_){}
+        console.assert(Array.isArray(window.__tickEls) && window.__tickEls.length === 60, 'Ticks (60) generados');
+      } catch(_){/* noop */}
     })();
   </script>
 </body>
