@@ -348,8 +348,8 @@ function updateSecondsUI(progress) {
 
         lastSec = currentSec;
 
-        // Disparar audio
-        if (soundOn && audioCtx) {
+        // Disparar audio (Específicamente vinculado a la visiblidad del segundero)
+        if (soundOn && audioCtx && showSeconds) {
             currentSec === 0 ? tickMinute() : tickSecond();
         }
     }
@@ -443,7 +443,8 @@ function startBackgroundTicker() {
     backgroundTimer = setInterval(() => {
         const s = new Date().getSeconds();
         if (s !== lastBGEmit) {
-            if (soundOn && audioCtx) {
+            // El sonido en segundo plano solo suena si el segundero está activo
+            if (soundOn && audioCtx && showSeconds) {
                 s === 0 ? tickMinute() : tickSecond();
             }
             lastBGEmit = s;

@@ -6,7 +6,6 @@
     /* Paleta de Colores */
     --bg: #000;
     --fg: #fff;
-    --glow: rgba(255, 255, 255, .08);
 
     /* Controles */
     --btn-bg: rgba(255, 255, 255, .06);
@@ -72,7 +71,6 @@ body {
     grid-template-columns: var(--digit-w) var(--digit-w) var(--colon-w) var(--digit-w) var(--digit-w);
     align-items: baseline;
     justify-content: center;
-    text-shadow: 0 0 .035em var(--glow), 0 0 .1em var(--glow);
 }
 
 .digit-slot {
@@ -146,7 +144,6 @@ body {
     font-size: min(6vw, 6vh);
     color: var(--fg);
     opacity: .9;
-    text-shadow: 0 0 .03em var(--glow), 0 0 .08em var(--glow);
     z-index: 11;
     display: flex;
     justify-content: center;
