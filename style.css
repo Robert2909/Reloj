@@ -111,6 +111,11 @@ body {
     pointer-events: none;
 }
 
+/* Ocultar anillo completamente al desactivar segundos */
+.sec-ring.hidden {
+    display: none;
+}
+
 .sec-ring circle {
     fill: none;
 }
