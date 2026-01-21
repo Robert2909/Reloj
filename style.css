@@ -18,12 +18,10 @@
     --tick: rgba(255, 255, 255, .22);
     --tick-elapsed: rgba(255, 255, 255, .75);
 
-    /* Geometría del Reloj (Valores Relacionados) */
+    /* Geometría del Reloj */
     --ring-size: min(86vmin, 88vmin);
     --digit-w: 0.62em;
-    /* Ancho matemático por dígito */
     --colon-w: 0.28em;
-    /* Ancho matemático para los dos puntos */
 }
 
 html,
@@ -37,6 +35,12 @@ body {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
     font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    transition: opacity .15s ease-in-out;
+    /* Para el efecto de pestañeo */
+}
+
+body.blink-out {
+    opacity: 0;
 }
 
 .wrap {
@@ -47,12 +51,89 @@ body {
     z-index: 1;
 }
 
-/* Contenedor Maestro: Alineación de capas */
 .clock-box {
     position: relative;
     display: grid;
     place-items: center;
-    /* Centra el SVG y el texto en el mismo eje */
+    transition: transform 5s ease-in-out;
+    /* Transición ultra suave para el Pixel Shift */
+}
+
+/* Animación de Arranque Épica (Neon Surge) */
+.startup-flicker {
+    animation: neonStart 1.8s cubic-bezier(0.2, 0, 0.2, 1) forwards;
+}
+
+@keyframes neonStart {
+    0% {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+        filter: brightness(0) blur(20px);
+    }
+
+    15% {
+        opacity: 0.4;
+        transform: scale(0.85) translateY(15px);
+        filter: brightness(0.5) blur(15px);
+    }
+
+    20% {
+        opacity: 0.1;
+        filter: brightness(0);
+    }
+
+    35% {
+        opacity: 0.7;
+        transform: scale(0.9) translateY(10px);
+        filter: brightness(1.5) blur(10px);
+    }
+
+    40% {
+        opacity: 0.3;
+    }
+
+    55% {
+        opacity: 1;
+        transform: scale(1.1) translateY(0);
+        filter: brightness(2) blur(0);
+    }
+
+    /* Burst */
+    70% {
+        opacity: 0.8;
+        transform: scale(0.98);
+        filter: brightness(0.8);
+    }
+
+    85% {
+        opacity: 1;
+        transform: scale(1.02);
+        filter: brightness(1.2);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+        filter: brightness(1);
+    }
+}
+
+.controls-reveal {
+    animation: controlsIn 1s ease-out 1.2s both;
+}
+
+@keyframes controlsIn {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, 30px);
+        filter: blur(10px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translate(-50%, 0);
+        filter: blur(0);
+    }
 }
 
 /* 3. COMPONENTE RELOJ (CENTRAL) */
@@ -65,8 +146,6 @@ body {
     text-rendering: optimizeLegibility;
     position: relative;
     z-index: 10;
-
-    /* Grid de precision: 2 slots + colon + 2 slots */
     display: grid;
     grid-template-columns: var(--digit-w) var(--digit-w) var(--colon-w) var(--digit-w) var(--digit-w);
     align-items: baseline;
@@ -80,15 +159,55 @@ body {
 .colon-slot {
     text-align: center;
     opacity: 0.9;
+    animation: colonPulse 2s ease-in-out infinite;
+    animation-delay: var(--pulse-delay, 0s);
 }
 
-/* Pseudo-elemento para reserva de espacio exacto */
+.mini-colon {
+    position: absolute;
+    right: 100%;
+    width: var(--colon-w);
+    text-align: center;
+    animation: colonPulse 2s ease-in-out infinite;
+    animation-delay: var(--pulse-delay, 0s);
+}
+
+@keyframes colonPulse {
+
+    0%,
+    100% {
+        opacity: 0.9;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.45;
+        transform: scale(0.98);
+    }
+}
+
+.ampm-slot {
+    position: absolute;
+    left: 100%;
+    bottom: 1.2vh;
+    /* Alineado sutilmente con la base de los números */
+    font-size: min(3.5vw, 3.5vh);
+    margin-left: 1em;
+    opacity: 0.8;
+    transition: opacity .4s ease, visibility .4s ease, transform .4s ease;
+}
+
+.ampm-slot.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-5px);
+}
+
 .clock-box::before {
     content: '88:88';
     font-family: inherit;
     font-weight: 700;
     line-height: 1;
-    letter-spacing: .02em;
     font-size: min(26vw, 26vh);
     position: absolute;
     left: 50%;
@@ -107,11 +226,14 @@ body {
     height: var(--ring-size);
     z-index: 5;
     pointer-events: none;
+    transition: opacity .4s ease, visibility .4s ease;
 }
 
-/* Ocultar anillo completamente al desactivar segundos */
 .sec-ring.hidden {
-    display: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .2s ease, visibility .2s;
+    /* Desaparece rápido para no chocar */
 }
 
 .sec-ring circle {
@@ -132,12 +254,11 @@ body {
     stroke-width: .9;
 }
 
-/* 5. SEGUNDOS MINI (Centrado por Contenido de Valor) */
+/* 5. SEGUNDOS MINI */
 #miniSec {
     position: absolute;
     left: 50%;
     top: 50%;
-    /* Ajuste vertical relativo para que no pise la hora */
     transform: translate(-50%, calc(-50% + 2.4em));
     font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     font-weight: 700;
@@ -147,13 +268,13 @@ body {
     z-index: 11;
     display: flex;
     justify-content: center;
+    transition: opacity .4s ease, visibility .4s ease, transform .4s ease;
 }
 
 .mini-aligner {
     display: flex;
     position: relative;
     align-items: baseline;
-    /* El centro de este contenedor es la unión de los dos dígitos */
 }
 
 .mini-slot {
@@ -161,26 +282,68 @@ body {
     text-align: center;
 }
 
-.mini-colon {
+#miniSec.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, calc(-50% + 2.5em));
+    /* Sube ligeramente al irse */
+    transition: opacity .2s ease, visibility .2s, transform .2s ease;
+}
+
+/* 6. FECHA DISCRETA */
+.date-discreet {
     position: absolute;
-    right: 100%;
-    /* Se posiciona a la izquierda sin ocupar espacio en el flujo */
-    width: var(--colon-w);
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, calc(-50% + 6.5em));
+    font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-weight: 700;
+    font-size: min(3.2vw, 3.2vh);
+    color: var(--fg);
+    opacity: .75;
+    z-index: 11;
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: opacity .5s cubic-bezier(.4, 0, .2, 1),
+        visibility .5s,
+        transform .6s cubic-bezier(0.2, 1.1, 0.4, 1);
+    /* Rebote mucho más elegante y discreto */
+}
+
+.date-discreet.pushed-up {
+    transform: translate(-50%, calc(-50% + 3.8em));
+    /* Posición elevada sin segundos */
+    transition-delay: 0.1s;
+    /* Espera a que el anillo empiece a desvanecerse */
+}
+
+.date-discreet.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, calc(-50% + 9em));
+    /* Origen desde abajo para evitar choques */
+}
+
+.date-slot {
+    width: 0.65em;
     text-align: center;
 }
 
-#miniSec.hidden {
-    display: none;
+.date-spacer {
+    width: 0.65em;
 }
 
-/* 6. CONTROLES Y ADORNOS */
+/* 7. CONTROLES Y AYUDA */
 .controls {
     position: fixed;
     left: 50%;
     bottom: 2.2vh;
     transform: translateX(-50%);
     display: flex;
-    gap: .6rem;
+    gap: .8rem;
     z-index: 100;
     transition: opacity .45s ease, transform .45s ease;
 }
@@ -192,43 +355,134 @@ body {
 }
 
 .controls button {
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
     display: grid;
     place-items: center;
     border-radius: 50%;
     background: var(--btn-bg);
-    color: var(--fg);
+    color: rgba(255, 255, 255, 0.7);
     border: 1px solid var(--btn-border);
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(8px);
     cursor: pointer;
+    transition: all .2s cubic-bezier(.4, 0, .2, 1);
+}
+
+.controls button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.4);
 }
 
 .controls button.active {
     background: var(--btn-active);
-    border-color: var(--fg);
+    color: #fff;
+    border-color: #fff;
+    transform: scale(1.1);
+    /* Ligera expansión al estar activo */
+}
+
+.controls button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    filter: grayscale(1);
+    transform: scale(0.95);
 }
 
 .controls svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
+    width: 20px;
+    height: 20px;
+}
+
+/* HELP OVERLAY STYLES */
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(12px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 1;
+    transition: opacity .3s ease;
+}
+
+.overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.help-content {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 2.5rem;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+}
+
+.help-content h2 {
+    margin-top: 0;
+    margin-bottom: 2rem;
+    font-weight: 300;
+    letter-spacing: 1px;
+    color: #fff;
+}
+
+.help-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 2rem 0;
+    text-align: left;
+}
+
+.help-list li {
+    margin: 1rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.help-list kbd {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    min-width: 24px;
+    text-align: center;
+    color: #fff;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+#close-help {
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 0.8rem 2rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .2s ease;
+}
+
+#close-help:hover {
+    transform: scale(1.05);
 }
 
 body.hide-cursor {
     cursor: none;
 }
 
-@media print {
-    .controls {
-        display: none;
-    }
-}
-
 .toast {
     position: fixed;
     left: 50%;
-    bottom: calc(2.2vh + 56px);
+    bottom: calc(2.2vh + 64px);
     transform: translateX(-50%);
     background: rgba(255, 255, 255, .08);
     color: var(--fg);
