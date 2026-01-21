@@ -1,0 +1,249 @@
+/* ==========================================================================
+   RELOJ DIGITAL PREMIUM - SISTEMA DE ESTILOS
+   ========================================================================== */
+
+:root {
+    /* Paleta de Colores */
+    --bg: #000;
+    --fg: #fff;
+    --glow: rgba(255, 255, 255, .08);
+
+    /* Controles */
+    --btn-bg: rgba(255, 255, 255, .06);
+    --btn-border: rgba(255, 255, 255, .18);
+    --btn-active: rgba(255, 255, 255, .25);
+
+    /* Segundero Circular */
+    --ring-track: rgba(255, 255, 255, .10);
+    --ring-progress: rgba(255, 255, 255, .85);
+    --tick: rgba(255, 255, 255, .22);
+    --tick-elapsed: rgba(255, 255, 255, .75);
+
+    /* Geometría del Reloj (Valores Relacionados) */
+    --ring-size: min(86vmin, 88vmin);
+    --digit-w: 0.62em;
+    /* Ancho matemático por dígito */
+    --colon-w: 0.28em;
+    /* Ancho matemático para los dos puntos */
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    overflow: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.wrap {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    z-index: 1;
+}
+
+/* Contenedor Maestro: Alineación de capas */
+.clock-box {
+    position: relative;
+    display: grid;
+    place-items: center;
+    /* Centra el SVG y el texto en el mismo eje */
+}
+
+/* 3. COMPONENTE RELOJ (CENTRAL) */
+#clock {
+    font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-weight: 700;
+    line-height: 1;
+    font-size: min(26vw, 26vh);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    position: relative;
+    z-index: 10;
+
+    /* Grid de precision: 2 slots + colon + 2 slots */
+    display: grid;
+    grid-template-columns: var(--digit-w) var(--digit-w) var(--colon-w) var(--digit-w) var(--digit-w);
+    align-items: baseline;
+    justify-content: center;
+    text-shadow: 0 0 .035em var(--glow), 0 0 .1em var(--glow);
+}
+
+.digit-slot {
+    text-align: center;
+}
+
+.colon-slot {
+    text-align: center;
+    opacity: 0.9;
+}
+
+/* Pseudo-elemento para reserva de espacio exacto */
+.clock-box::before {
+    content: '88:88';
+    font-family: inherit;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .02em;
+    font-size: min(26vw, 26vh);
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    visibility: hidden;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+}
+
+/* 4. SEGUNDERO CIRCULAR */
+.sec-ring {
+    position: absolute;
+    width: var(--ring-size);
+    height: var(--ring-size);
+    z-index: 5;
+    pointer-events: none;
+}
+
+.sec-ring circle {
+    fill: none;
+}
+
+.sec-ring line {
+    stroke: var(--tick);
+    stroke-linecap: round;
+}
+
+.sec-ring line.elapsed {
+    stroke: var(--tick-elapsed);
+}
+
+.sec-ring line.active {
+    stroke: var(--ring-progress);
+    stroke-width: .9;
+}
+
+/* 5. SEGUNDOS MINI (Centrado por Contenido de Valor) */
+#miniSec {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    /* Ajuste vertical relativo para que no pise la hora */
+    transform: translate(-50%, calc(-50% + 2.4em));
+    font-family: 'DS-Digital', 'DS-Digital Bold', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-weight: 700;
+    font-size: min(6vw, 6vh);
+    color: var(--fg);
+    opacity: .9;
+    text-shadow: 0 0 .03em var(--glow), 0 0 .08em var(--glow);
+    z-index: 11;
+    display: flex;
+    justify-content: center;
+}
+
+.mini-aligner {
+    display: flex;
+    position: relative;
+    align-items: baseline;
+    /* El centro de este contenedor es la unión de los dos dígitos */
+}
+
+.mini-slot {
+    width: var(--digit-w);
+    text-align: center;
+}
+
+.mini-colon {
+    position: absolute;
+    right: 100%;
+    /* Se posiciona a la izquierda sin ocupar espacio en el flujo */
+    width: var(--colon-w);
+    text-align: center;
+}
+
+#miniSec.hidden {
+    display: none;
+}
+
+/* 6. CONTROLES Y ADORNOS */
+.controls {
+    position: fixed;
+    left: 50%;
+    bottom: 2.2vh;
+    transform: translateX(-50%);
+    display: flex;
+    gap: .6rem;
+    z-index: 100;
+    transition: opacity .45s ease, transform .45s ease;
+}
+
+.controls.hidden {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+    pointer-events: none;
+}
+
+.controls button {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--btn-bg);
+    color: var(--fg);
+    border: 1px solid var(--btn-border);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
+}
+
+.controls button.active {
+    background: var(--btn-active);
+    border-color: var(--fg);
+}
+
+.controls svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+body.hide-cursor {
+    cursor: none;
+}
+
+@media print {
+    .controls {
+        display: none;
+    }
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(2.2vh + 56px);
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, .08);
+    color: var(--fg);
+    border: 1px solid rgba(255, 255, 255, .18);
+    border-radius: 999px;
+    padding: .5rem 1rem;
+    font-size: 13px;
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    z-index: 150;
+    transition: opacity .35s ease;
+}
+
+.toast.hidden {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+    pointer-events: none;
+}
